@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chill Run Adventure</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #f8eefa;
+  font-family: 'Trebuchet MS', sans-serif;
+  text-align: center;
+  color: #75647c;
+}
+
+.container {
+  max-width: 750px;
+  margin: auto;
+  padding: 20px;
+}
+
+h1 {
+  color: #ae88ad;
+  font-size: 32px;
+}
+
+.gamebox {
+  background: #fffaff;
+  padding: 15px;
+  border-radius: 25px;
+  box-shadow: 0 8px 25px #bda7c555;
+}
+
+canvas {
+  width: 100%;
+  background: #dff2e9;
+  border-radius: 18px;
+  display: block;
+}
+
+.info {
+  display: flex;
+  justify-content: space-around;
+  padding: 12px;
+  font-weight: bold;
+}
+
+button {
+  border: none;
+  background: #c6a5ca;
+  color: white;
+  padding: 14px 25px;
+  border-radius: 15px;
+  font-size: 16px;
+  cursor: pointer;
+  margin: 8px;
+}
+
+button:hover {
+  background: #a987b0;
+}
+
+#message {
+  margin: 12px;
+  min-height: 24px;
+  font-weight: bold;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🌷 Chill Run Adventure 🌷</h1>
+<p>Run, jump, collect stars and have fun! ☁️</p>
+
+<div class="gamebox">
+
+<div class="info">
+<span>⭐ Score: <span id="score">0</span></span>
+<span>🏆 Best: <span id="best">0</span></span>
+</div>
+
+<canvas id="game" width="700" height="350"></canvas>
+
+<p id="message">Ready for adventure? 🌸</p>
+
+<button onclick="startGame()">▶ START GAME</button>
+<button id="jumpButton">⬆ LOMPAT</button>
+
+<p style="font-size:13px">
+PC: Tekan SPACE atau panah atas untuk melompat.<br>
+HP: Tekan tombol LOMPAT!
+</p>
+
+</div>
+</div>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const scoreText = document.getElementById("score");
+const bestText = document.getElementById("best");
+const message = document.getElementById("message");
+
+let player;
+let obstacles;
+let stars;
+let score;
+let speed;
+let running = false;
+let gameOver = false;
+let frame = 0;
+let animation;
+
+let best = Number(localStorage.getItem("chillBest") || 0);
+bestText.textContent = best;
+
+function resetGame() {
+  player = {
+    x: 90,
+    y: 255,
+    width: 38,
+    height: 45,
+    velocity: 0,
+    jumping: false
+  };
+
+  obstacles = [];
+  stars = [];
+  score = 0;
+  speed = 4;
+  frame = 0;
+  gameOver = false;
+}
+
+function drawBackground() {
+  ctx.fillStyle = "#dff2e9";
+  ctx.fillRect(0, 0, 700, 350);
+
+  // Clouds
+  ctx.fillStyle = "#ffffff";
+
+  for (let i = 0; i < 4; i++) {
+    let x = (i * 210 - frame * 0.5 % 850 + 850) % 850;
+
+    ctx.beginPath();
+    ctx.arc(x, 65, 20, 0, Math.PI * 2);
+    ctx.arc(x + 22, 58, 25, 0, Math.PI * 2);
+    ctx.arc(x + 45, 67, 18, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Hills
+  ctx.fillStyle = "#b9d9c1";
+  ctx.beginPath();
+  ctx.moveTo(0, 260);
+  ctx.quadraticCurveTo(150, 160, 300, 260);
+  ctx.quadraticCurveTo(480, 170, 700, 260);
+  ctx.lineTo(700, 350);
+  ctx.lineTo(0, 350);
+  ctx.fill();
+
+  // Ground
+  ctx.fillStyle = "#a6cba8";
+  ctx.fillRect(0, 300, 700, 50);
+
+  ctx.fillStyle = "#ffffff";
+
+  for (let i = 0; i < 20; i++) {
+    let x = (i * 45 - frame * speed % 900 + 900) % 700;
+    ctx.fillRect(x, 320, 12, 3);
+  }
+}
+
+function drawPlayer() {
+  ctx.fillStyle = "#e7a9c9";
+
+  // Bunny ears
+  ctx.beginPath();
+  ctx.ellipse(player.x + 11, player.y + 5, 6, 17, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(player.x + 28, player.y + 5, 6, 17, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = "#f4b8d5";
+  ctx.beginPath();
+  ctx.roundRect(player.x, player.y + 13, 38, 32, 12);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = "#594653";
+  ctx.beginPath();
+  ctx.arc(player.x + 11, player.y + 26, 2, 0, Math.PI * 2);
+  ctx.arc(player.x + 27, player.y + 26, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cheeks
+  ctx.fillStyle = "#ef91b9";
+  ctx.beginPath();
+  ctx.arc(player.x + 6, player.y + 31, 4, 0, Math.PI * 2);
+  ctx.arc(player.x + 32, player.y + 31, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function jump() {
+  if (!running || gameOver) return;
+
+  if (!player.jumping) {
+    player.velocity = -13;
+    player.jumping = true;
+  }
+}
+
+function createObstacle() {
+  obstacles.push({
+    x: 710,
+    y: 270,
+    width: 28,
+    height: 30
+  });
+}
+
+function createStar() {
+  stars.push({
+    x: 710,
+    y: 220 + Math.random() * 50,
+    size: 15
+  });
+}
+
+function drawObstacle(o) {
+  ctx.fillStyle = "#a18d7d";
+  ctx.beginPath();
+  ctx.roundRect(o.x, o.y, o.width, o.height, 8);
+  ctx.fill();
+
+  ctx.fillStyle = "#d2b6a4";
+  ctx.fillRect(o.x + 6, o.y + 7, 6, 5);
+}
+
+function drawStar(s) {
+  ctx.fillStyle = "#ffcf69";
+  ctx.font = "25px Arial";
+  ctx.fillText("⭐", s.x, s.y);
+}
+
+function collision(a, b) {
+  return (
+    a.x + a.width > b.x + 4 &&
+    a.x < b.x.x + b.width - 4 &&
+    a.y + a.height > b.y + 4 &&
+    a.y < b.y + b.height
+  );
+}
+
+function checkCollision(a, b) {
+  return (
+    a.x + a.width > b.x &&
+    a.x < b.x + b.width &&
+    a.y + a.height > b.y &&
+    a.y < b.y + b.height
+  );
+}
+
+function startGame() {
+  cancelAnimationFrame(animation);
+  resetGame();
+  running = true;
+  message.textContent = "Let's run! Collect the stars! ✨";
+  animation = requestAnimationFrame(loop);
+}
+
+function endGame() {
+  running = false;
+  gameOver = true;
+
+  if (score > best) {
+    best = score;
+    localStorage.setItem("chillBest", best);
+    bestText.textContent = best;
+  }
+
+  message.textContent =
+    "Game Over! ⭐ Score kamu: " + score + " — Coba lagi!";
+
+  ctx.fillStyle = "#ffffffdd";
+  ctx.fillRect(130, 105, 440, 100);
+
+  ctx.fillStyle = "#987a9d";
+  ctx.font = "bold 30px Trebuchet MS";
+  ctx.textAlign = "center";
+  ctx.fillText("GAME OVER 🌸", 350, 148);
+
+  ctx.font = "18px Trebuchet MS";
+  ctx.fillText("Score: " + score + " points", 350, 180);
+
+  ctx.textAlign = "left";
+}
+
+function loop() {
+  if (!running) return;
+
+  frame++;
+
+  drawBackground();
+
+  // Gravity
+  player.y += player.velocity;
+  player.velocity += 0.65;
+
+  if (player.y >= 255) {
+    player.y = 255;
+    player.velocity = 0;
+    player.jumping = false;
+  }
+
+  // Spawn obstacles
+  if (frame % Math.max(45, Math.floor(100 - speed * 5)) === 0) {
+    createObstacle();
+  }
+
+  // Spawn stars
+  if (frame % 90 === 0) {
+    createStar();
+  }
+
+  // Increase speed
+  speed = Math.min(9, 4 + score / 250);
+
+  obstacles.forEach(o => {
+    o.x -= speed;
+    drawObstacle(o);
+
+    if (checkCollision(player, o)) {
+      endGame();
+    }
+  });
+
+  stars.forEach(s => {
+    s.x -= speed;
+    drawStar(s);
+
+    if (
+      player.x < s.x + 25 &&
+      player.x + player.width > s.x &&
+      player.y < s.y &&
+      player.y + player.height > s.y - 25
+    ) {
+      s.x = -100;
+      score += 10;
+    }
+  });
+
+  obstacles = obstacles.filter(o => o.x > -50);
+  stars = stars.filter(s => s.x > -50);
+
+  drawPlayer();
+
+  scoreText.textContent = score;
+
+  animation = requestAnimationFrame(loop);
+}
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" || e.code === "ArrowUp") {
+    e.preventDefault();
+    jump();
+  }
+});
+
+canvas.addEventListener("click", jump);
+
+document.getElementById("jumpButton")
+.addEventListener("click", jump);
+
+resetGame();
+drawBackground();
+drawPlayer();
+
+</script>
+
+</body>
+</html>
